@@ -1948,6 +1948,9 @@ class Array(DaskMethodsMixin):
         if any(isinstance(i, Array) and i.dtype.kind in "iu" for i in index2):
             self, index2 = slice_with_int_dask_array(self, index2)
         if any(isinstance(i, Array) and i.dtype == bool for i in index2):
+            if self.ndim == 1:
+                if verify_simple_case(index2):
+                    self, index2 = slice_with_int_dask_array(self, simple_masker(index2))
             self, index2 = slice_with_bool_dask_array(self, index2)
 
         if all(isinstance(i, slice) and i == slice(None) for i in index2):
@@ -5710,3 +5713,16 @@ class BlockView:
 
 from dask.array.blockwise import blockwise
 from dask.array.utils import compute_meta, meta_from_array
+
+def verify_simple_case(a):
+    from dask.array.routines import where
+    b = where(a == False)[0]
+    return b.sum() == (b.max()-b.min()+1)*(b.max()+b.min())/2
+
+def simple_masker(a):
+    from dask.array.creation import arange
+    x = a.min(), a.max() + 1
+    i0 = arange(x[0], dtype=int)
+    i1 = arange(x[1], a.size, dtype=int)
+    return concatenate((i0, i1), axis=0)
+    
